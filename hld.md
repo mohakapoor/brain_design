@@ -35,9 +35,10 @@ Capture ──► Review ──► Execute ──► Track ──► Improve ─
 
 ```mermaid
 graph LR
-    Frontend["Frontend (Web App)"] -->|"HTTPS"| Worker["Cloudflare Worker (API)"]
-    MCP["MCP Client (AI Agent)"] -->|"HTTPS"| Worker
-    Worker -->|"SQL"| D1[("Cloudflare D1 (Database)")]
+    Frontend["Frontend (Web App)"] -->|"HTTPS"| BackendWorker["Cloudflare Worker (Backend API)"]
+    AI["AI Clients (Claude / Cursor)"] -->|"MCP (SSE/HTTP)"| MCPWorker["Cloudflare Worker (MCP Server)"]
+    MCPWorker -->|"HTTPS (Bearer Auth)"| BackendWorker
+    BackendWorker -->|"SQL"| D1[("Cloudflare D1 (Database)")]
 ```
 
 ---
@@ -56,13 +57,12 @@ graph LR
   * Initial boot calls `GET /api_brain/auth/me` to determine whether to render the dashboard or the authentication gateway.
 
 ### 3.2 Conversational AI Layer (`brain_mcp`)
-* **Technology:** Model Context Protocol (MCP) TypeScript SDK.
-* **Execution Environment:** Runs locally as an MCP server daemon managed by AI clients (Claude Desktop, Cursor, or ChatGPT).
+* **Technology:** Cloudflare Workers, TypeScript, Model Context Protocol (MCP) TypeScript SDK.
+* **Execution Environment:** Runs as a serverless edge Cloudflare Worker, exposing remote MCP transport over SSE / HTTP.
 * **Communication:**
-  * AI clients trigger structured tools (e.g., `create_task`, `list_tasks`, `toggle_task`, `delete_task`).
-  * The MCP server holds `BRAIN_API_KEY` in its private process environment.
-  * Translates tool calls into standard HTTP requests with `Authorization: Bearer <BRAIN_API_KEY>` to the edge API.
-  * Returns JSON responses formatted back to the AI model's context window.
+  * AI clients (Claude Desktop, Cursor, ChatGPT) connect remotely over the network.
+  * Translates tool calls (`create_task`, `list_tasks`, `toggle_task`, `delete_task`) into authenticated HTTPS calls with `Authorization: Bearer <BRAIN_API_KEY>` to the Backend Worker.
+  * Relays structured results back to the AI model's context stream.
 
 ### 3.3 Edge API Worker (`brain_backend`)
 * **Technology:** Cloudflare Workers, Hono web framework (`^4.x`), TypeScript.
@@ -175,6 +175,7 @@ To prevent unauthorized signups and bot account creation:
 | **Frontend SPA** | Vercel | Production | `brain.mohakapoor.in` |
 | **Edge API Worker** | Cloudflare Workers | Dev / Staging | `dev.mohakapoor.in` |
 | **Edge API Worker** | Cloudflare Workers | Production | `api.mohakapoor.in` / `brain.mohakapoor.in/api_brain` |
+| **MCP Server Worker** | Cloudflare Workers | Dev / Prod | `mcp.mohakapoor.in` |
 | **Database** | Cloudflare D1 | Isolated Dev | `brain-dev` |
 | **Database** | Cloudflare D1 | Isolated Prod | `brain-prod` |
 | **CI/CD** | GitHub Actions | Automated Pipeline | Lint, Typecheck, Migrations, Deploy |
@@ -188,7 +189,7 @@ To prevent unauthorized signups and bot account creation:
    * Remote D1 CRUD + Session Cookie Auth + Landing Showcase.
 2. **Phase 2 (Immediate Next):**
    * Dual-Auth Middleware implementation (`sessions` + `api_keys`).
-   * Standalone `brain_mcp` server package for Claude Desktop & Cursor.
+   * Cloudflare Worker `brain_mcp` server deployment (remote SSE/HTTP transport for Claude & Cursor).
    * Authenticated Web Dashboard views (Inbox, Today queue, Completed archive).
 3. **Phase 3 (Expansion):**
    * Peripheral Life Modules (as previewed in [BeyondTasksShowcase.tsx](file:///c:/Users/mohak/OneDrive/Documents/Projects/brain/brain_frontend/src/components/BeyondTasksShowcase.tsx)):
