@@ -34,48 +34,10 @@ Capture ──► Review ──► Execute ──► Track ──► Improve ─
 ## 2. System Architecture Diagram
 
 ```mermaid
-graph TB
-    subgraph ClientLayer["Client Layer (Two Interfaces)"]
-        WebClient["Web Dashboard (React 19 + Vite)<br/>Hosted on Vercel<br/>Domain: brain.mohakapoor.in"]
-        MCPClient["AI Clients (Claude Desktop / Cursor / ChatGPT)<br/>via Brain MCP Server (Node/TS stdio)"]
-    end
-
-    subgraph EdgeGateway["Edge Compute & API Gateway (Cloudflare Workers + Hono)"]
-        Worker["Cloudflare Worker Router<br/>dev.mohakapoor.in/api_brain/*"]
-        CORS["CORS Middleware<br/>Allowed: *.mohakapoor.in, localhost"]
-        ZodGate["Request Validation<br/>@hono/zod-validator + Zod 4"]
-        AuthMiddleware["Dual requireAuth Middleware"]
-    end
-
-    subgraph PersistenceLayer["Edge Persistence Layer (Cloudflare D1 SQLite)"]
-        D1[("Cloudflare D1 Database<br/>SQLite at the Edge")]
-        TableUsers[("users")]
-        TableSessions[("sessions")]
-        TableApiKeys[("api_keys")]
-        TableTasks[("tasks")]
-    end
-
-    %% Web interactions
-    WebClient -->|"HTTPS + Credentials: include<br/>(session_id cookie)"| CORS
-    %% MCP interactions
-    MCPClient -->|"HTTPS REST<br/>Authorization: Bearer brain_live_..."| CORS
-
-    CORS --> ZodGate
-    ZodGate --> AuthMiddleware
-    AuthMiddleware --> Worker
-
-    %% Auth resolution against D1
-    AuthMiddleware -.->|"Validate UUID & check expiry"| TableSessions
-    AuthMiddleware -.->|"Compute SHA-256 & verify hash"| TableApiKeys
-    
-    %% Business queries
-    Worker -->|"CRUD Prepared Statements"| TableTasks
-    Worker -->|"User & Credential Queries"| TableUsers
-
-    %% Relations
-    TableUsers --- TableSessions
-    TableUsers --- TableApiKeys
-    TableUsers --- TableTasks
+graph LR
+    Frontend["Frontend (Web App)"] -->|"HTTPS"| Worker["Cloudflare Worker (API)"]
+    MCP["MCP Client (AI Agent)"] -->|"HTTPS"| Worker
+    Worker -->|"SQL"| D1[("Cloudflare D1 (Database)")]
 ```
 
 ---
