@@ -7,27 +7,15 @@
 
 ---
 
-## 1. Executive Summary & Core Philosophy
+## 1. System Overview
 
-The **Personal Second Brain & Execution System** is a low-latency, edge-first task capture and execution platform designed around a single psychological principle:
+The **Personal Second Brain & Execution System** is an edge-first task capture and execution platform.
 
-> **Working memory is for processing, not storage.** While working, new thoughts, tasks, and ideas emerge constantly. Capturing them must have lower cognitive friction than attempting to remember them.
+The system provides two client interfaces backed by a single source of truth:
+1. **Web Dashboard:** Browser client for visual task management, backlog triage, and tracking.
+2. **AI Agent Interface (MCP):** A Cloudflare Worker running an MCP server that enables natural-language task management for AI clients (Claude, Cursor, etc.).
 
-The system's core operating loop is:
-```text
-Capture ──► Review ──► Execute ──► Track ──► Improve ──↺ (Loops back to Capture)
-```
-
-### 1.1 Architectural Axioms
-1. **Execution Over Endless Planning:** Zero premature planning bureaucracy. The system facilitates immediate capture, single-task execution focus, and velocity tracking.
-2. **Two Interfaces, One Source of Truth:**
-   * **Web Dashboard:** A high-craft visual interface (React 19 + Vite) for manual capture, task triage, metrics, and velocity analysis.
-   * **Conversational AI Agent (MCP):** A headless Model Context Protocol (MCP) server allowing clients (Claude Desktop, Cursor, ChatGPT) to manipulate tasks via natural language.
-   * **Rule:** Both interfaces query the identical Cloudflare Worker backend and Cloudflare D1 SQLite database. The AI layer is never a separate data silo.
-3. **Sub-Millisecond Edge Architecture:** All computing runs on V8 isolates via Cloudflare Workers; relational data resides in Cloudflare D1 distributed SQLite.
-4. **Dual-Model Authentication:**
-   * Web browsers authenticate via secure, `HttpOnly` database-backed session cookies.
-   * Headless AI / MCP clients authenticate via `Authorization: Bearer <api_key>` backed by SHA-256 hashed API keys.
+All client operations route through an edge API gateway (Cloudflare Worker) to a serverless relational database (Cloudflare D1 SQLite).
 
 ---
 
