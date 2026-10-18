@@ -70,62 +70,16 @@ graph LR
 
 ---
 
-## 4. Authentication & Security Architecture
+## 4. Authentication & Security
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User as Web Browser
-    actor AI as MCP AI Agent
-    participant Edge as Edge Worker (requireAuth)
-    participant D1 as D1 SQLite Database
+The edge API implements a **Dual-Authentication** strategy:
+* **Web Dashboard:** Database-backed `HttpOnly` session cookies (`session_id`).
+* **MCP Server / Headless:** `Authorization: Bearer <api_key>` header verified against SHA-256 hashed keys.
 
-    Note over User,D1: Scenario A: Web Browser Request
-    User->>Edge: GET /api_brain/tasks (Cookie: session_id=uuid)
-    Edge->>D1: SELECT user FROM sessions WHERE id = ? AND expires_at > unixepoch()
-    alt Session Valid
-        D1-->>Edge: User Record (id, username)
-        Edge-->>User: 200 OK + Tasks Payload
-    else Session Missing or Expired
-        Edge-->>User: 401 Unauthorized
-    end
-
-    Note over AI,D1: Scenario B: Headless MCP Agent Request
-    AI->>Edge: POST /api_brain/tasks (Authorization: Bearer brain_live_xyz)
-    Edge->>Edge: Compute SHA-256(brain_live_xyz)
-    Edge->>D1: SELECT user FROM api_keys WHERE key_hash = ? AND (expires_at IS NULL OR expires_at > unixepoch())
-    alt Key Valid
-        D1-->>Edge: User Record (id, username)
-        Edge-->>AI: 201 Created + New Task Payload
-    else Key Invalid or Revoked
-        Edge-->>AI: 401 Unauthorized
-    end
-```
-
-### 4.1 Dual Authentication Matrix
-
-| Attribute | Web Dashboard | MCP / AI Agent / CLI |
-| :--- | :--- | :--- |
-| **Transport** | `Cookie: session_id=<UUID>` | `Authorization: Bearer <API_KEY>` |
-| **Storage in Browser/Client** | `HttpOnly`, `SameSite: Lax`, `Secure` | Local `.env` / config file |
-| **Validation Mechanism** | Exact UUID lookup in `sessions` table | SHA-256 hash lookup in `api_keys` table |
-| **Revocation** | Auto on `/logout` or single-device login override | Instant revocation via DB row deletion / toggle |
-| **Session Lifetime** | 7 Days (`SESSION_TTL_SECONDS = 604800`) | Indefinite or configurable expiry |
-
-### 4.2 Multi-Tenant Data Isolation
-Every data mutation and selection is strictly scoped by user ID:
-```sql
-SELECT * FROM tasks WHERE user_id = ? ORDER BY completed ASC, created_at DESC;
-UPDATE tasks SET completed = ? WHERE id = ? AND user_id = ?;
-DELETE FROM tasks WHERE id = ? AND user_id = ?;
-```
-Even if an attacker guesses a valid `task_id`, the `WHERE user_id = ?` clause prevents unauthorized cross-tenant modification or deletion.
-
-### 4.3 Invite-Only Registration Gate
-To prevent unauthorized signups and bot account creation:
-* `POST /api_brain/auth/register` requires `inviteCode`.
-* Verified directly against the Cloudflare Worker secret `c.env.INVITE_CODE`.
-* Fails fast with `403 Forbidden` if the code does not match.
+### Core Security Controls
+* **Multi-Tenant Isolation:** Every data query and mutation is strictly scoped to the authenticated `user_id`.
+* **Invite-Only Registration:** Signup requires an `inviteCode` validated against edge worker environment secrets.
+* **Origin Boundary:** CORS middleware restricts browser access to approved domains (`*.mohakapoor.in`, local dev).
 
 ---
 
